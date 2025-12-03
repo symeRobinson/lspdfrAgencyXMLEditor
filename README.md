@@ -1,6 +1,7 @@
-A lightweight, browser-based XML loadout editor designed for FiveM-style agency vehicle configurations.  
+A lightweight, browser-based XML loadout editor designed for LSPDFR agency vehicle configurations.  
 Uses **pure text-based, lossless parsing** to ensure your original XML formatting is preserved exactly.
 
+supports agency.xml, eupfr_agency.xml, etc. standard files from Grand Theft Auto V/lspdfr/data/[agency.xml]
 ---
 <img width="2516" height="1106" alt="image" src="https://github.com/user-attachments/assets/0164c468-d4cd-4fe6-afcf-c0fca5618471" />
 
