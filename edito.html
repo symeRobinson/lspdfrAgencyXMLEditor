@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Lossless XML Vehicle Editor (Fixed)</title>
+
+<style>
+    body { font-family:Segoe UI, sans-serif; background:#0f1116; color:#e4e4e4; padding:20px; }
+    textarea { width:100%; height:200px; background:#1b1e24; border:1px solid #2d3139; color:#e4e4e4; padding:10px; border-radius:6px; }
+    .agency { margin-top:20px; padding:15px; background:#15181f; border:1px solid #2a2d33; border-radius:8px; }
+    .loadout { margin-top:12px; padding:12px; background:#1b1e26; border:1px solid #30333b; border-radius:6px; }
+    .vehicle-row { display:grid; grid-template-columns:70px 1fr 90px 40px; gap:10px; margin-bottom:6px; }
+    input[type=text], input[type=number] {
+        background:#181a20; border:1px solid #2d3038; color:#e4e4e4; padding:6px; border-radius:4px;
+    }
+    button { background:#2f86ff; border:none; padding:8px 14px; color:white; border-radius:4px; margin-right:5px; cursor:pointer;}
+    button:hover { background:#61a4ff;}
+    button.danger { background:#b43b3b; }
+    button.danger:hover { background:#d04949; }
+    button.secondary { background:#50545e; }
+    button.secondary:hover { background:#6a6e78; }
+</style>
+
+</head>
+<body>
+
+<h2>LOSSLESS XML Vehicle Editor (Fixed)</h2>
+
+<textarea id="inputXML" placeholder="Paste XML here…"></textarea>
+<br>
+<button onclick="parseXML()">Parse XML</button>
+
+<div id="editor"></div>
+<div id="presetModal" style="
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.55); backdrop-filter:blur(4px);
+    justify-content:center; align-items:center; z-index:9999;
+">
+    <div style="
+        width:480px; max-height:80%; overflow-y:auto;
+        background:#1a1c22; border:1px solid #2d3038; border-radius:8px;
+        padding:20px;
+    ">
+        <h2 style="margin-top:0;">Add Preset Vehicle</h2>
+        <div id="presetContainer"></div>
+        <br>
+        <button onclick="closePresetModal()" style="background:#444;">Close</button>
+    </div>
+</div>
+<h3>Output XML</h3>
+<textarea id="outputXML"></textarea>
+<br>
+<button onclick="exportXML()">Generate XML</button>
+
+<script>
+const VEHICLE_PRESETS = {
+
+// ---------------------------
+// BCSO
+// ---------------------------
+"BCSO": [
+    { name:"bcsoalamo", label:"BCSO Alamo" },
+    { name:"bcsobison", label:"BCSO Bison" },
+    { name:"bcsocara", label:"BCSO Caracara" },
+    { name:"bcsofugitive", label:"BCSO Fugitive" },
+    { name:"bcsogranger", label:"BCSO Granger" },
+    { name:"bcsogranger2", label:"BCSO Granger 2" },
+    { name:"bcsogranger3", label:"BCSO Granger 3" },
+    { name:"bcsogranger4", label:"BCSO Granger 4" },
+    { name:"bcsosandking", label:"BCSO Sandking SWB" },
+    { name:"bcsoscout", label:"BCSO Scout" },
+    { name:"bcsostanier", label:"BCSO Stanier" },
+    { name:"bcsostanier2", label:"BCSO Stanier 2" }
+],
+
+// ---------------------------
+// Border Patrol
+// ---------------------------
+"Border Patrol": [
+    { name:"bp2", label:"BP Charger" },
+    { name:"bp3", label:"BP Bronco" },
+    { name:"bp4", label:"BP Jeep" },
+    { name:"bp5", label:"BP Van" },
+    { name:"bp6", label:"BP Pickup" }
+],
+
+// ---------------------------
+// Del Perro PD
+// ---------------------------
+"Del Perro PD": [
+    { name:"dppolice",  label:"Del Perro Yosemite" },
+    { name:"dppolice2", label:"Del Perro Cruiser" },
+    { name:"dppolice3", label:"Del Perro Utility" },
+    { name:"dppolice4", label:"Del Perro Alamo" }
+],
+
+// ---------------------------
+// FIB
+// ---------------------------
+"FIB": [
+    { name:"fbialamo", label:"FIB/Rockford Hills Alamo" },
+
+    { name:"fibp", label:"FIB Stanier" },
+    { name:"fibp1a", label:"FIB Supervisor Stanier" },
+    { name:"fibp2", label:"FIB Buffalo A/C" },
+    { name:"fibp3", label:"FIB Torrence" },
+    { name:"fibp4", label:"FIB Alamo" },
+    { name:"fibp42", label:"FIB Alamo K9" },
+    { name:"fibp5", label:"FIB Granger" },
+    { name:"fibp6", label:"FIB Scout" },
+    { name:"fibp62", label:"FIB Scout K9" },
+    { name:"fibp7", label:"FIB Rumpo" },
+    { name:"fibp8", label:"FIB Pigeon Patrol" }
+],
+
+// ---------------------------
+// LSPD
+// ---------------------------
+"LSPD": [
+    { name:"lspdb", label:"LSPD Motorcycle" },
+    { name:"police", label:"LSPD CVPI" },
+    { name:"police2", label:"LSPD CVPI Alt" },
+    { name:"police3", label:"LSPD Taurus" },
+    { name:"police4", label:"Old LSPD White CVPI" },
+    { name:"policeslick", label:"LSPD Slicktop CVPI" },
+    { name:"pscout", label:"LSPD Explorer" },
+    { name:"pscoutnew", label:"LSPD Explorer Lightbar" },
+    { name:"poleveron", label:"LSPD F150" },
+    { name:"polriot", label:"LSPD SWAT Bearcat" },
+    { name:"polsadlerk9", label:"LSPD K9 Truck" },
+    { name:"polspeedo", label:"LSPD Transport Van" },
+    { name:"swatstalker", label:"LSPD SWAT SUV" }
+],
+
+// ---------------------------
+// LSSD
+// ---------------------------
+"LSSD": [
+    { name:"alamo", label:"LSSD Alamo (Vanilla)" },
+    { name:"lssdalamo", label:"LSSD Alamo (Pack)" },
+    { name:"sheriff", label:"LSSD Stanier" },
+    { name:"sheriffoss", label:"LSSD Stanier Unmarked" },
+    { name:"sherifffug", label:"LSSD Fugitive" },
+    { name:"sheriffalamo", label:"LSSD Alamo 2" },
+    { name:"sheriffroamer", label:"LSSD Landroamer" },
+    { name:"sheriffstalker", label:"LSSD Landstalker" },
+    { name:"sheriffthrust", label:"LSSD Motorcycle" },
+    { name:"sheriffrumpo", label:"LSSD Rumpo" },
+    { name:"sheriffcq4", label:"LSSD Coquette" },
+    { name:"sheriff2", label:"LSSD Granger" },
+    { name:"sheriffscout", label:"LSSD Scout" },
+    { name:"sheriffscoutnew", label:"LSSD Scout LB" },
+    { name:"sheriffinsurgent", label:"LSSD Insurgent" }
+],
+
+// ---------------------------
+// NOOSE
+// ---------------------------
+"NOOSE": [
+    { name:"nooseair", label:"NOOSE Large Helicopter" },
+    { name:"nooseair2", label:"NOOSE Small Helicopter" },
+    { name:"nooseair3", label:"NOOSE Water Helicopter" },
+
+    { name:"noosebp", label:"NOOSE Border Patrol Car" },
+
+    { name:"noosepia", label:"NOOSE PIA Small Car" },
+    { name:"pia2", label:"NOOSE PIA Charger" },
+    { name:"pia3", label:"NOOSE PIA Taurus" },
+    { name:"pia4", label:"NOOSE PIA Explorer" },
+    { name:"pia5", label:"NOOSE PIA Big Truck" },
+    { name:"pia6", label:"NOOSE PIA Van" },
+
+    { name:"noosesea", label:"NOOSE Boat" },
+    { name:"noosesea2", label:"NOOSE Small Boat" },
+
+    { name:"noosesep", label:"NOOSE SEP Car 1–5" },
+
+    { name:"noosetru", label:"NOOSE Heavy Truck" },
+    { name:"tru2", label:"NOOSE Box Truck" },
+    { name:"noosetru3", label:"NOOSE SUV" }
+],
+
+// ---------------------------
+// Park Rangers
+// ---------------------------
+"Park Rangers": [
+    { name:"parkbf400", label:"Ranger BF400" },
+    { name:"prangeryo", label:"Ranger Yosemite LX" },
+    { name:"prangerlr", label:"Ranger Landroamer" },
+    { name:"prangerstalker", label:"Ranger Landstalker SWB" },
+    { name:"prangeral", label:"Ranger Alamo" },
+    { name:"prangerme", label:"Ranger Mesa" },
+    { name:"prangerbi", label:"Ranger Bison" },
+    { name:"prangerbu", label:"Ranger Buffalo S" },
+    { name:"prangersd", label:"Ranger Sadler" },
+    { name:"prangertor", label:"Ranger Torrence" },
+    { name:"prangerstanier", label:"Ranger Stanier" },
+    { name:"prangersct", label:"Ranger Scout" },
+    { name:"proutlaw", label:"Ranger ATV Outlaw" },
+    { name:"prangercara", label:"Ranger Caracara" },
+    { name:"prangereveron", label:"Ranger Everon" },
+    { name:"prangerverus", label:"Ranger Verus" }
+],
+
+// ---------------------------
+// Rockford Hills PD
+// ---------------------------
+"Rockford Hills PD": [
+    { name:"rhpolice", label:"Rockford Hills Stanier" },
+    { name:"rhpolice2", label:"Rockford Hills Alamo" },
+    { name:"rhpolice3", label:"Rockford Hills Fugitive" }
+],
+
+// ---------------------------
+// SAHP
+// ---------------------------
+"SAHP": [
+    { name:"sahp", label:"SAHP Stanier" },
+    { name:"sahp1a", label:"SAHP Stanier Slicktop" },
+    { name:"sahp1b", label:"SAHP Stanier K9" },
+    { name:"sahp1c", label:"SAHP Stanier Vector" },
+    { name:"sahp1d", label:"SAHP Stanier CVE" },
+
+    { name:"sahp2",  label:"SAHP Buffalo S" },
+    { name:"sahp2a", label:"SAHP Buffalo S ST" },
+    { name:"sahp22", label:"SAHP Buffalo AC" },
+    { name:"sahp22a",label:"SAHP Buffalo AC ST" },
+
+    { name:"sahp3",  label:"SAHP Scout" },
+    { name:"sahp3a", label:"SAHP Scout Slicktop" },
+    { name:"sahp3b", label:"SAHP Scout K9" },
+
+    { name:"sahp4", label:"SAHP Trek" },
+    { name:"sahp4a",label:"SAHP Trek Vector" },
+
+    { name:"sahp5", label:"SAHP Alamo" },
+    { name:"sahp5a",label:"SAHP Alamo Slicktop" },
+
+    { name:"sahp6", label:"SAHP Sandking" },
+    { name:"sahp6a",label:"SAHP Sandking ST" },
+
+    { name:"sahpb",  label:"SAHP Motorcycle WG" },
+    { name:"sahpb2", label:"SAHP Thrust" },
+    { name:"sahpair", label:"SAHP Maverick" }
+],
+
+// ---------------------------
+// SASPA
+// ---------------------------
+"SASPA": [
+    { name:"saspacar", label:"SASPA Stanier" },
+    { name:"saspacar2", label:"SASPA Torrence" },
+    { name:"saspacar3", label:"SASPA Premier" },
+    { name:"saspacar4", label:"SASPA Scout" }
+],
+
+// ---------------------------
+// Prison
+// ---------------------------
+"Prison": [
+    { name:"pcar", label:"Prison Asea" },
+    { name:"psuv", label:"Prison Patriot" },
+    { name:"pvan", label:"Prison Rumpo" },
+    { name:"ptruck", label:"Prison Stockade" },
+    { name:"pbus3", label:"Prison Coach Bus" }
+],
+
+// ---------------------------
+// USAF
+// ---------------------------
+"USAF": [
+    { name:"policeusaf",  label:"USAF Merit" },
+    { name:"policeusaf2", label:"USAF Yosemite" }
+],
+
+// ---------------------------
+// Port Auth.
+// ---------------------------
+"Port Authority": [
+    { name:"portpolice1a", label:"Port Police Car A" },
+    { name:"portpolice1b", label:"Port Police Car B" },
+    { name:"portpolice1c", label:"Port Police Car C" },
+    { name:"portpolice4",  label:"Port Police Unit 4" },
+    { name:"portpolice6",  label:"Port Police Unit 6" },
+    { name:"portpolice8",  label:"Port Police Unit 8" }
+],
+
+// ---------------------------
+// LSIA / Airport
+// ---------------------------
+"Airport Police / LSIA": [
+    { name:"policelsia",   label:"LSIA Unit" },
+    { name:"policelsia1b", label:"LSIA Unit 1B" },
+    { name:"policelsia5",  label:"LSIA Unit 5" },
+    { name:"policelsia6",  label:"LSIA Unit 6" },
+    { name:"trafficlsia",  label:"LSIA Traffic Unit" }
+]
+};
+let lines = [];             
+let vehicleBlocks = {};     
+function tagText(s) { 
+    return s.replace(/<[^>]+>/g, '').trim(); 
+}
+
+// ============================================================
+//      PARSE XML AS LOSSLESS TEXT - FIXED LOGIC
+// ============================================================
+function parseXML() {
+    const raw = document.getElementById("inputXML").value;
+    lines = raw.split(/\r?\n/);
+    vehicleBlocks = {};
+
+    let currentAgency = null;
+    let currentLoadout = null;
+    let inVehicles = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        let rawLine = lines[i];
+        let line = rawLine.trim();
+
+        // -------------------------------
+        // Detect start of <Agency>
+        // -------------------------------
+        if (line === "<Agency>") {
+            currentAgency = null;
+            currentLoadout = null;
+            inVehicles = false;
+            continue;
+        }
+
+        // -------------------------------
+        // Detect agency <Name> (only first)
+        // -------------------------------
+        if (line.startsWith("<Name>") && currentAgency === null) {
+            currentAgency = tagText(line);
+            vehicleBlocks[currentAgency] = {};
+            continue;
+        }
+
+        // -------------------------------
+        // Detect <Loadout>
+        // -------------------------------
+        if (line.startsWith("<Loadout")) {
+            currentLoadout = null;
+            inVehicles = false;
+            continue;
+        }
+
+        // -------------------------------
+        // Detect loadout <Name> 
+        // -------------------------------
+        if (line.startsWith("<Name>") && currentLoadout === null && currentAgency !== null) {
+            currentLoadout = tagText(line);
+            vehicleBlocks[currentAgency][currentLoadout] = {
+                start: null,
+                end: null,
+                vehicles: []
+            };
+            continue;
+        }
+
+        // -------------------------------
+        // Detect EXACT <Vehicles>
+        // Must be inside agency + loadout
+        // -------------------------------
+        if (line === "<Vehicles>") {
+            if (currentAgency && currentLoadout) {
+                inVehicles = true;
+                vehicleBlocks[currentAgency][currentLoadout].start = i;
+            } else {
+                // Not inside editable area — ignore
+                inVehicles = false;
+            }
+            continue;
+        }
+
+        // -------------------------------
+        // Capture <Vehicle>
+        // -------------------------------
+        if (inVehicles && line.startsWith("<Vehicle")) {
+            vehicleBlocks[currentAgency][currentLoadout].vehicles.push({
+                lineIndex: i,
+                text: rawLine.trim()
+            });
+            continue;
+        }
+
+        // -------------------------------
+        // Detect EXACT </Vehicles>
+        // -------------------------------
+        if (line === "</Vehicles>") {
+            if (inVehicles && currentAgency && currentLoadout) {
+                vehicleBlocks[currentAgency][currentLoadout].end = i;
+            }
+            inVehicles = false;
+            continue;
+        }
+    }
+
+    renderEditor();
+}
+
+// ============================================================
+//                  RENDERING UI
+// ============================================================
+function renderEditor() {
+    const root = document.getElementById("editor");
+    root.innerHTML = "";
+
+    for (let agency in vehicleBlocks) {
+        let divA = document.createElement("div");
+        divA.className = "agency";
+        divA.innerHTML = `<h2>${agency}</h2>`;
+
+        for (let load in vehicleBlocks[agency]) {
+            let block = vehicleBlocks[agency][load];
+
+            if (!block || !block.vehicles.length) continue;
+
+            let divL = document.createElement("div");
+            divL.className = "loadout";
+
+            let html = `
+                        <h3>${load}</h3>
+                <button class="secondary" onclick="equalize('${agency}','${load}')">Equalize Chances</button>
+                <button style="background:#3cb371;" onclick="openPresetModal('${agency}','${load}')">Add Preset</button>
+
+                <div style="margin-top:10px;">
+                    <textarea id="bulk_${agency}_${load}" 
+                        placeholder="paste vehicle names here (one per line)" 
+                        style="width:100%; height:60px; background:#222; border:1px solid #444; color:white; margin-top:6px;">
+                    </textarea>
+                    <button style="background:#7f3fff;" onclick="bulkAdd('${agency}','${load}')">Bulk Add</button>
+                </div>
+                <br>
+            `;
+
+            block.vehicles.forEach((v, idx) => {
+                let match = v.text.match(/<Vehicle(?:\s+chance="(\d+)")?>(.*?)<\/Vehicle>/i);
+                let chance = match && match[1] ? match[1] : "";
+                let name = match ? match[2] : "";
+
+                html += `
+                <div class="vehicle-row">
+                    <input type="number" value="${chance}" onchange="editChance('${agency}','${load}',${idx},this.value)">
+                    <input type="text" value="${name}" onchange="editName('${agency}','${load}',${idx},this.value)">
+                    <button onclick="boost('${agency}','${load}',${idx})">Boost</button>
+                    <button class="danger" onclick="deleteVehicle('${agency}','${load}',${idx})">X</button>
+                </div>`;
+            });
+
+            html += `<button onclick="addVehicle('${agency}','${load}')">+ Add Vehicle</button>`;
+            divL.innerHTML = html;
+            divA.appendChild(divL);
+        }
+
+        root.appendChild(divA);
+    }
+}
+// =============================================
+// PRESET UI STATE
+// =============================================
+let presetTargetAgency = null;
+let presetTargetLoadout = null;
+
+// =============================================
+// OPEN MODAL
+// =============================================
+function openPresetModal(agency, loadout) {
+    presetTargetAgency = agency;
+    presetTargetLoadout = loadout;
+
+    const modal = document.getElementById("presetModal");
+    const container = document.getElementById("presetContainer");
+
+    let html = "";
+
+    for (let group in VEHICLE_PRESETS) {
+        html += `
+        <div style="margin-bottom:10px;">
+            <details style="background:#111319; padding:10px; border:1px solid #2d3038; border-radius:5px;">
+                <summary style="cursor:pointer; font-size:15px; padding:4px 0;">
+                    <b>${group}</b>
+                </summary>
+                <div style="margin-top:8px;">
+        `;
+
+        VEHICLE_PRESETS[group].forEach(v => {
+            html += `
+                <button onclick="applyPreset('${v.name}','${v.label}')"
+                        style="display:block; width:100%; text-align:left;
+                        margin-bottom:4px; padding:6px;
+                        background:#252830; border:1px solid #333;
+                        color:white; border-radius:4px;">
+                    ${v.label} <span style="opacity:0.5">(${v.name})</span>
+                </button>
+            `;
+        });
+
+        html += `
+                </div>
+            </details>
+        </div>
+        `;
+    }
+
+    container.innerHTML = html;
+    modal.style.display = "flex";
+}
+
+
+// =============================================
+// CLOSE MODAL
+// =============================================
+function closePresetModal() {
+    document.getElementById("presetModal").style.display = "none";
+}
+
+// =============================================
+// APPLY PRESET TO LOADOUT
+// =============================================
+function applyPreset(vehicleName, label) {
+    const a = presetTargetAgency;
+    const l = presetTargetLoadout;
+
+    vehicleBlocks[a][l].vehicles.push({
+        lineIndex: null,
+        text: `<Vehicle chance="0">${vehicleName}</Vehicle>`
+    });
+
+    closePresetModal();
+    renderEditor();
+}
+
+
+// ============================================================
+//              VEHICLE EDITING
+// ============================================================
+function editChance(a,l,i,val) {
+    let veh = vehicleBlocks[a][l].vehicles[i];
+    veh.text = veh.text.replace(/chance="(\d+)"/, '').replace(
+        /<Vehicle/,
+        val ? `<Vehicle chance="${val}"` : `<Vehicle`
+    );
+}
+
+function editName(a,l,i,val) {
+    let veh = vehicleBlocks[a][l].vehicles[i];
+    veh.text = veh.text.replace(/>(.*?)</, `>${val}<`);
+}
+
+function deleteVehicle(a,l,i) {
+    vehicleBlocks[a][l].vehicles.splice(i,1);
+    renderEditor();
+}
+
+function addVehicle(a,l) {
+    vehicleBlocks[a][l].vehicles.push({
+        lineIndex: null,
+        text: `<Vehicle></Vehicle>`
+    });
+    renderEditor();
+}
+
+function boost(a,l,i){
+    let block = vehicleBlocks[a][l];
+    let target = block.vehicles[i];
+
+    let current = 0;
+    let m = target.text.match(/chance="(\d+)"/);
+    if (m) current = parseInt(m[1]);
+
+    let boosted = Math.min(current + 20, 100);
+
+    editChance(a,l,i,boosted);
+    renderEditor();
+}
+
+// ============================================================
+//                  Equalize Chances
+// ============================================================
+function equalize(a,l) {
+    let block = vehicleBlocks[a][l];
+    let count = block.vehicles.length;
+
+    if (count === 0) return;
+
+    let each = Math.floor(100 / count);
+
+    block.vehicles = block.vehicles.map(v => {
+        let nameMatch = v.text.match(/>(.*?)</);
+        let name = nameMatch ? nameMatch[1] : "";
+        return {
+            lineIndex: v.lineIndex,
+            text: `<Vehicle chance="${each}">${name}</Vehicle>`
+        };
+    });
+
+    renderEditor();
+}
+
+
+// ============================================================
+//                  EXPORT (LOSSLESS)
+// ============================================================
+function exportXML() {
+    let out = [...lines];
+
+    for (let agency in vehicleBlocks) {
+        for (let load in vehicleBlocks[agency]) {
+            let block = vehicleBlocks[agency][load];
+            if (!block || block.start === null || block.end === null) continue;
+
+            let newLines = block.vehicles.map(v => "    " + v.text);
+
+            let start = block.start + 1;
+            let end = block.end - 1;
+
+            out.splice(start, end - start + 1, ...newLines);
+        }
+    }
+
+    document.getElementById("outputXML").value = out.join("\n");
+}
+
+function bulkAdd(a,l) {
+    let box = document.getElementById(`bulk_${a}_${l}`);
+    if (!box) return;
+
+    let list = box.value.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
+
+    list.forEach(name => {
+        vehicleBlocks[a][l].vehicles.push({
+            lineIndex: null,
+            text: `<Vehicle chance="0">${name}</Vehicle>`
+        });
+    });
+
+    box.value = "";
+    renderEditor();
+}
+
+</script>
+
+</body>
+</html>
