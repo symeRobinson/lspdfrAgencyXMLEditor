@@ -2,6 +2,7 @@ A lightweight, browser-based XML loadout editor designed for FiveM-style agency 
 Uses **pure text-based, lossless parsing** to ensure your original XML formatting is preserved exactly.
 
 ---
+<img width="2516" height="1106" alt="image" src="https://github.com/user-attachments/assets/0164c468-d4cd-4fe6-afcf-c0fca5618471" />
 
 ## ✨ Features
 
@@ -20,6 +21,7 @@ Uses **pure text-based, lossless parsing** to ensure your original XML formattin
 - Delete vehicles  
 - Add new vehicle entries  
 - “Boost” button increases chance by +20  
+
 - **Equalize** evenly distributes chance values across all vehicles
 
 ### 📦 Preset Vehicle Library
